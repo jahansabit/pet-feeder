@@ -21,17 +21,11 @@ String mqttTopic_ = "user/" + String(user_id) + "/" + String(authorizationToken)
 // Convert the String to const char*
 const char* mqttTopic = mqttTopic_.c_str();
 
-// String serverUrl = "https://ibrahimovi.tech/tasks/check/" + String(user_id);
-
-// SSL fingerprint of the server's certificate
-// const char* fingerprint = "85:A7:3D:F0:C3:82:8C:8D:CC:A4:BD:E2:19:10:5F:D2:9A:EB:6C:BC";
-
 int a = D0;
 int b = D1;
 int c = D2;
 bool dispense_now = false;
 
-WiFiClientSecure secure_client;  // Use WiFiClientSecure for HTTPS
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 
@@ -52,7 +46,6 @@ void setup() {
   }
 
   connectToMQTT();
-  // secure_client.setFingerprint(fingerprint);
   
   Serial.println("Connected to WiFi");
 }
@@ -85,66 +78,27 @@ void callback(char* topic, byte* payload, unsigned int length) {
         digitalWrite(b, HIGH);
         digitalWrite(c, HIGH);
         Serial.println("dispense_now");
+        delay(10000);
     }
 }
 
 void loop() {
-  // std::unique_ptr<BearSSL::WiFiClientSecure> secure_client(new BearSSL::WiFiClientSecure);
-  // secure_client->setFingerprint(fingerprint);
-  // secure_client->setInsecure();
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!mqttClient.connected()) {
+      connectToMQTT();
+    }
+    mqttClient.loop();
 
-  if (!mqttClient.connected()) {
-    connectToMQTT();
-  }
-  mqttClient.loop();
-
-  if (dispense_now == true) {
-    digitalWrite(a, HIGH);
-    digitalWrite(b, HIGH);
-    digitalWrite(c, HIGH);
-    Serial.println("High");
-  } else {
     digitalWrite(a, LOW);
     digitalWrite(b, LOW);
     digitalWrite(c, LOW);
-    Serial.println("Low");
-  }
+    // Serial.println("Low");
+    
 
-  dispense_now = false;
-
-  delay(10000);  // Delay for 30 seconds (30,000 milliseconds)
-  
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("Sending HTTP GET request...");
-    
-    HTTPClient http;
-    http.begin(*secure_client, serverUrl);
-    
-    http.addHeader("Authorization", authorizationToken); // Add the authorization header
-    
-    int httpResponseCode = http.GET();
-    if (httpResponseCode == HTTP_CODE_OK) {s
-      String payload = http.getString();
-      
-      DynamicJsonDocument jsonDoc(1024);
-      DeserializationError error = deserializeJson(jsonDoc, payload);
-      
-      if (!error) {
-        bool server_dispense_now = jsonDoc["dispense_now"];
-        if (server_dispense_now) {
-          dispense_now = true;
-          Serial.println("Dispensing now.");
-        }
-      } else {
-        Serial.println("JSON parsing error");
-      }
-    } else {
-      Serial.print("HTTP GET request failed, error code: ");
-      Serial.println(httpResponseCode);
-    }
-    
-    http.end();
   } else {
-    Serial.println("WiFi Disconnected");
+    Serial.println("Wifi not Connected...");
   }
+
+    // Delay for 30 seconds (30,000 milliseconds)
+  
 }

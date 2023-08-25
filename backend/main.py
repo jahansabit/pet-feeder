@@ -17,6 +17,8 @@ mqtt_client.connect(mqtt_broker_address, mqtt_broker_port)
 app = Flask(__name__, static_folder='../frontend', static_url_path='/')
 CORS(app)
 
+previous_time = ""
+
 # Connect to the SQLite database
 conn = sqlite3.connect("tasks.db")
 cursor = conn.cursor()
@@ -260,6 +262,7 @@ def send_mqtt_command_dispense(user_id, command):
 
 # Function to continuously check the time and send MQTT messages
 def send_periodic_dispense():
+    global previous_time
     with app.app_context():
         while True:
             current_time = utc_to_bangladesh_time(datetime.utcnow()).strftime("%H:%M")
@@ -271,9 +274,12 @@ def send_periodic_dispense():
             for task in all_tasks:
                 user_id, task_time = task
                 if task_time == current_time:
+                    if current_time == previous_time:
+                        break
                     send_mqtt_command(user_id, "dispense_now")
+                    previous_time = current_time
             
-            time.sleep(6)  # Sleep for 1 second
+            time.sleep(1)  # Sleep for 1 second
 
 def send_mqtt_command(user_id, command):
     with app.app_context():
