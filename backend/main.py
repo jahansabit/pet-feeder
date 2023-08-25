@@ -3,7 +3,8 @@ import pytz
 from datetime import datetime
 from flask import Flask, jsonify, request, current_app, g
 from flask_cors import CORS
-
+import time
+import threading
 import paho.mqtt.client as mqtt
 
 mqtt_broker_address = "4.213.73.200"
@@ -231,42 +232,9 @@ def delete_task(user_id, time_str):
 
     return jsonify({"message": "Task deleted"})
 
-
-# Endpoint to check if it is time to send a notification
-@app.route("/tasks/check/<int:user_id>", methods=["GET"])
-def check_tasks(user_id):
-    api_key = request.headers.get("Authorization")
-
-    if not validate_api_key(str(user_id), api_key):
-        return jsonify({"error": "Unauthorized"}), 401
-
-    db = get_db()
-    cursor = db.cursor()
-
-    cursor.execute("SELECT id, user_id, time FROM tasks WHERE user_id = ?", (user_id,))
-    all_tasks = cursor.fetchall()
-
-    # get current hour and minute in Bangladesh time
-    current_time = utc_to_bangladesh_time(datetime.utcnow()).strftime("%H:%M")
-
-    print("current_time:", current_time)
-
-    dispense_now = False
-
-    for task in all_tasks:
-        task_time = task[2]
-        # print("task_id:", task[0])
-        # print("user_id:", task[1])
-        # print("task_time:", task_time)
-        if task_time == current_time:
-            dispense_now = True
-            break
-
-    return jsonify({"dispense_now": dispense_now})
-
 # Endpoint to send a command via MQTT
 @app.route("/send_mqtt_command/<int:user_id>/<string:command>", methods=["POST"])
-def send_mqtt_command(user_id, command):
+def send_mqtt_command_dispense(user_id, command):
     password = request.headers.get("Authorization")
 
     if not authenticate_user(user_id, password):
@@ -290,6 +258,42 @@ def send_mqtt_command(user_id, command):
 
     return jsonify({"message": "Command sent via MQTT"}), 200
 
+# Function to continuously check the time and send MQTT messages
+def send_periodic_dispense():
+    with app.app_context():
+        while True:
+            current_time = utc_to_bangladesh_time(datetime.utcnow()).strftime("%H:%M")
+            db = get_db()
+            cursor = db.cursor()
+            cursor.execute("SELECT user_id, time FROM tasks")
+            all_tasks = cursor.fetchall()
+            
+            for task in all_tasks:
+                user_id, task_time = task
+                if task_time == current_time:
+                    send_mqtt_command(user_id, "dispense_now")
+            
+            time.sleep(6)  # Sleep for 1 second
+
+def send_mqtt_command(user_id, command):
+    with app.app_context():
+        # get API key from the database
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute('SELECT api_key FROM api_keys WHERE user_id = ?', (user_id,))
+        row = cursor.fetchone()
+
+        if row is None:
+            return jsonify({"error": "API key not found"}), 404
+        
+        api_key = row[0]
+        mqtt_topic = f"user/{user_id}/{api_key}/commands"
+        mqtt_client.publish(mqtt_topic, command)
+        print(f"Sending MQTT command to user {user_id}")
 
 if __name__ == "__main__":
+    thread = threading.Thread(target=send_periodic_dispense)
+    thread.daemon = True  # This will allow the thread to exit when the main program exits
+    thread.start()
+
     app.run(debug=False, host="0.0.0.0")
