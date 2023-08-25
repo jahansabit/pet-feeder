@@ -42,7 +42,7 @@ ESP8266WebServer server(80);
 
 void handleRoot() {
   if (!configSaved) {
-    String html = "<html><body>";
+    String html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=2.0' /><style>body {background-color: #946ceb}</style></head><body>";
     html += "<form method='post' action='/save'>";
     html += "SSID: <input type='text' name='ssid'><br>";
     html += "Password: <input type='text' name='password'><br>";
