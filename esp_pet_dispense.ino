@@ -6,6 +6,9 @@
 #include <ArduinoJson.h>
 #include <PubSubClient.h>
 
+#include <ESP8266WebServer.h>
+#include <EEPROM.h>
+
 const char* ssid = "Robot 2.4G";
 const char* password = "Rizvy136060";
 const char* user_id = "0";
@@ -29,25 +32,123 @@ bool dispense_now = false;
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 
+bool configSaved = false;
+int config_mode_led = D6;
+int wifi_connected_led = D7;
+int button_pin = D8;
+int adcValue = 0;
+int apStarted = 0;
+ESP8266WebServer server(80);
+
+void handleRoot() {
+  if (!configSaved) {
+    String html = "<html><body>";
+    html += "<form method='post' action='/save'>";
+    html += "SSID: <input type='text' name='ssid'><br>";
+    html += "Password: <input type='text' name='password'><br>";
+    html += "<input type='submit' value='Save'>";
+    html += "</form></body></html>";
+    server.send(200, "text/html", html);
+  } else {
+    server.send(200, "text/html", "Configuration saved. Restart device.");
+  }
+}
+
+void handleSave() {
+  String newSSID = server.arg("ssid");
+  String newPassword = server.arg("password");
+
+  digitalWrite(config_mode_led, LOW);
+
+  // Save to EEPROM
+  EEPROM.begin(512);
+  writeString(0, newSSID);
+  writeString(32, newPassword);
+  EEPROM.commit();
+  EEPROM.end();
+
+  server.sendHeader("Location", "/");
+  server.send(302, "text/plain", "");
+  delay(1000); // Give time to redirect
+  ESP.restart();
+}
+
 void setup() {
+  Serial.begin(9600);
+
   pinMode(a, OUTPUT);
   pinMode(b, OUTPUT);
   pinMode(c, OUTPUT);
 
+  pinMode(config_mode_led, OUTPUT);
+  pinMode(wifi_connected_led, OUTPUT);
+
+  pinMode(button_pin, INPUT);
+
   mqttClient.setServer(mqttServer, mqttPort);
   mqttClient.setCallback(callback);
   
-  Serial.begin(9600);
-  WiFi.begin(ssid, password);
+  // Check if config is saved in EEPROM
+  EEPROM.begin(512);
+  String savedSSID = readString(0);
+  String savedPassword = readString(32);
+  EEPROM.end();
   
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    Serial.println("Connecting to WiFi...");
-  }
+  if (savedSSID.length() > 0) {
+    configSaved = true;
+    Serial.println("Connecting to saved WiFi...");
+    Serial.println(savedSSID);
+    Serial.println(savedPassword);
+    WiFi.begin(savedSSID.c_str(), savedPassword.c_str());
 
-  connectToMQTT();
+    int retries = 0;
+
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(1000);
+      Serial.println("Connecting to WiFi...");
+      retries++;
+
+      if(retries > 9){
+        break;
+      }
+    }
+    
+    if(retries > 9){
+       Serial.println("Failed to connect to WiFi");
+    } else {
+      digitalWrite(wifi_connected_led, HIGH);
+      Serial.println("Connected to WiFi");
+    }
+  } 
+  else {
+    Serial.println("No saved WiFi configuration found.");
+  }
   
-  Serial.println("Connected to WiFi");
+  // connectToMQTT();
+  // Serial.println("Connected to WiFi");
+}
+
+void start_ap_mode(){
+  if(apStarted == 0){
+
+    for (int i = 0 ; i < EEPROM.length() ; i++) {
+      EEPROM.write(i, 0);
+    }
+
+    apStarted = 1;
+    configSaved = false;
+    digitalWrite(wifi_connected_led, LOW);
+    digitalWrite(config_mode_led, HIGH);
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP("Pet-Feeder", "12345678"); // Set your AP name and password
+    IPAddress myIP = WiFi.softAPIP();
+    Serial.print("AP IP address: ");
+    Serial.println(myIP);
+
+    server.on("/", handleRoot);
+    server.on("/save", handleSave);
+    server.begin();
+  }
 }
 
 void connectToMQTT() {
@@ -83,22 +184,63 @@ void callback(char* topic, byte* payload, unsigned int length) {
 }
 
 void loop() {
-  if (WiFi.status() == WL_CONNECTED) {
-    if (!mqttClient.connected()) {
-      connectToMQTT();
-    }
-    mqttClient.loop();
+  adcValue = digitalRead(button_pin);
 
-    digitalWrite(a, LOW);
-    digitalWrite(b, LOW);
-    digitalWrite(c, LOW);
-    // Serial.println("Low");
-    
-
-  } else {
-    Serial.println("Wifi not Connected...");
+  if(adcValue == 1){
+    Serial.println("(adcValue == 1");
+    apStarted = 0;
+    start_ap_mode();
   }
 
-    // Delay for 30 seconds (30,000 milliseconds)
+  if(!configSaved){
+    server.handleClient();
+  } else {
+    if (WiFi.status() == WL_CONNECTED) {
+      if (!mqttClient.connected()) {
+        connectToMQTT();
+      }
+      mqttClient.loop();
+
+      digitalWrite(a, LOW);
+      digitalWrite(b, LOW);
+      digitalWrite(c, LOW);
+      Serial.println("Low");
+      delay(500);
+
+    } else {
+      Serial.println("Wifi not Connected...");
+    }
+  }
   
+}
+
+//EEPROM
+void writeString(char index,String data)
+{
+  int _size = data.length();
+  int i;
+  for(i=0;i<_size;i++)
+  {
+    EEPROM.write(index+i,data[i]);
+  }
+  EEPROM.write(index+_size,'\0');   //Add termination null character for String Data
+  EEPROM.commit();
+}
+
+
+String readString(char index)
+{
+  int i;
+  char data[100]; //Max 100 Bytes
+  int len=0;
+  unsigned char k;
+  k=EEPROM.read(index);
+  while(k != '\0' && len<500)   //Read until null character
+  {    
+    k=EEPROM.read(index+len);
+    data[len]=k;
+    len++;
+  }
+  data[len]='\0';
+  return String(data);
 }

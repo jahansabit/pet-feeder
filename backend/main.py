@@ -270,7 +270,6 @@ def send_periodic_dispense():
                 mqtt_client.reconnect()
                 print("Reconnecting to MQTT broker...")
                 time.sleep(1)
-                continue
 
             current_time = utc_to_bangladesh_time(datetime.utcnow()).strftime("%H:%M")
             db = get_db()
