@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="../scripts.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .login-form {
+            background-color: #fff;
+            border-radius: 5px;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 300px;
+        }
+
+        .login-form h2 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .login-form .form-group {
+            margin-bottom: 15px;
+        }
+
+        .login-form .form-group label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .login-form .form-group input {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 280px;
+        }
+
+        .login-form .form-group .submit-button {
+            width: auto;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            background-color: #4CAF50;
+            color: #fff;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .login-form .form-group .submit-button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-container">
+        <div class="login-form">
+            <h2>Login</h2>
+            <div class="form-group">
+                <label for="user_id">User ID</label>
+                <input type="text" id="user_id" name="user_id" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <div class="form-group">
+                <input onclick="login_fe()" type="submit" class="submit-button" value="Login">
+            </div>
+        </div>
+    </div>
+</body>
+<script>
+    // Login using fetch API
+
+    async function login_fe() {
+        const user_id_field = document.getElementById('user_id');
+        const password_field = document.getElementById('password');
+
+        if (await login(user_id_field.value, password_field.value) == "true") {
+            // save base64 encoded user_id and password in localStorage
+            localStorage.setItem('user_id', btoa(user_id_field.value));
+            localStorage.setItem('auth', btoa(password_field.value));
+
+            // show sweetalert message and redirect to home page after 2 seconds
+            Swal.fire({
+                icon: 'success',
+                title: 'Login Successful',
+                showConfirmButton: false,
+                timer: 2000
+            }).then(() => {
+                window.location.href = '/';
+            });
+        } else {
+            // show sweetalert message
+            Swal.fire({
+                icon: 'error',
+                title: 'Login Failed',
+                text: 'Invalid User ID or Password'
+            });
+        }
+    }
+</script>
+
+</html>

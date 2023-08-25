@@ -1,19 +1,46 @@
 var SERVER_URL = "http://localhost:5000";
 
-// get url
-var url = new URL(window.location.href);
+// get current url
+var current_url = window.location.href;
+var pathname = window.location.pathname;
 
-// get api key from url
-var api_key = url.searchParams.get("api_key");
+console.log(current_url);
+console.log(pathname);
 
-// get user id from url
-var user_id = url.searchParams.get("user_id");
+// get user id from local storage. if user_id is null, redirect to login page. base64 decode user_id.
+var user_id = localStorage.getItem("user_id");
+user_id = atob(user_id);
 
+// get password from local storage. if password is null, redirect to login page. base64 decode password.
+var password = localStorage.getItem("auth");
+password = atob(password);
+
+async function startup_tasks() {
+    // if current url pathname doesn't start with /login and check if user is logged in. if not, redirect to login page.
+    if (!pathname.startsWith("/login")) {
+
+        if (password == null || user_id == null) {
+            window.location.href = "login";
+        } else {
+            // check if user is logged in
+            var login_status = await login(user_id, password);
+            if (login_status != "true") {
+                window.location.href = "login";
+            }
+        }
+    }
+
+    if (pathname == "/") {
+        fetchTasks(password, user_id);
+    }
+}
+
+startup_tasks();
 
 // function to create task
-function fetchTasks(api_key, user_id) {
+function fetchTasks(password, user_id) {
     const headers = new Headers({
-        'Authorization': api_key
+        'Authorization': password
     });
 
     fetch(`${SERVER_URL}/tasks/${user_id}`, {
@@ -34,10 +61,8 @@ function fetchTasks(api_key, user_id) {
         .catch(error => console.error('Error fetching tasks:', error));
 }
 
-fetchTasks(api_key, user_id);
-
 // function to create task
-function createTask(api_key, user_id, time) {
+function createTask(password, user_id, time) {
     const data = {
         time: time
     };
@@ -46,7 +71,7 @@ function createTask(api_key, user_id, time) {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': api_key
+            'Authorization': password
         },
         body: JSON.stringify(data),
     }).then(response => {
@@ -59,7 +84,7 @@ function createTask(api_key, user_id, time) {
 }
 
 // function to edit task
-function editTaskNetwork(api_key, user_id, prev_time, new_time) {
+function editTaskNetwork(password, user_id, prev_time, new_time) {
     const data = {
         time: new_time
     };
@@ -68,7 +93,7 @@ function editTaskNetwork(api_key, user_id, prev_time, new_time) {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': api_key
+            'Authorization': password
         },
         body: JSON.stringify(data),
     }).then(response => {
@@ -81,12 +106,12 @@ function editTaskNetwork(api_key, user_id, prev_time, new_time) {
 }
 
 // function to delete task
-function deleteTaskNetwork(api_key, user_id, time) {
+function deleteTaskNetwork(password, user_id, time) {
     fetch(`${SERVER_URL}/tasks/${user_id}/${time}`, {
         method: 'DELETE',
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': api_key
+            'Authorization': password
         }
     }).then(response => {
         return response.json();
@@ -125,4 +150,27 @@ function convertTime24to12(time24h) {
     minutes = minutes.padStart(2, '0'); // Add preceding zero if needed
 
     return `${hours}:${minutes} ${modifier}`;
+}
+
+async function login(user_id, password) {
+    const response = await fetch('/authenticate', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            user_id: user_id,
+            password: password
+        })
+    });
+
+    console.log(response);
+
+    if (response.ok) {
+        const data = await response.json();
+        return "true"
+    } else {
+        const errorData = await response.json();
+        return "Error: " + errorData.error
+    }
 }
