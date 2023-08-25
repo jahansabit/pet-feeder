@@ -1,4 +1,4 @@
-var SERVER_URL = "http://localhost:5000";
+var SERVER_URL = "https://ibrahimovi.tech";
 
 // get current url
 var current_url = window.location.href;
@@ -173,4 +173,83 @@ async function login(user_id, password) {
         const errorData = await response.json();
         return "Error: " + errorData.error
     }
+}
+
+function dispense(user_id, password) {
+    const apiUrl = `/send_mqtt_command/${user_id}/dispense`;
+
+    const requestOptions = {
+        method: 'POST',
+        headers: {
+            'Authorization': password,
+            'Content-Type': 'application/json'
+        }
+    };
+
+    fetch(apiUrl, requestOptions)
+        .then(response => {
+            if (!response.ok) {
+                const Toast = Swal.mixin({
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 3000,
+                    timerProgressBar: true,
+                    didOpen: (toast) => {
+                        toast.addEventListener('mouseenter', Swal.stopTimer)
+                        toast.addEventListener('mouseleave', Swal.resumeTimer)
+                    }
+                });
+
+                return response.json().then(data => {
+                    Toast.fire({
+                        icon: 'error',
+                        title: 'Error dispensing food: ' + data.error
+                    });
+
+                    throw new Error('Network response was not ok');
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log(data.message); // Success message
+
+            const Toast = Swal.mixin({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3000,
+                timerProgressBar: true,
+                didOpen: (toast) => {
+                    toast.addEventListener('mouseenter', Swal.stopTimer)
+                    toast.addEventListener('mouseleave', Swal.resumeTimer)
+                }
+            });
+
+            Toast.fire({
+                icon: 'success',
+                title: 'Dispensing food...'
+            });
+        })
+        .catch(error => {
+            console.error('There was a problem with the fetch operation:', error);
+
+            const Toast = Swal.mixin({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3000,
+                timerProgressBar: true,
+                didOpen: (toast) => {
+                    toast.addEventListener('mouseenter', Swal.stopTimer)
+                    toast.addEventListener('mouseleave', Swal.resumeTimer)
+                }
+            });
+
+            Toast.fire({
+                icon: 'error',
+                title: 'Error dispensing food: ' + error.message
+            });
+        });
 }

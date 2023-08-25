@@ -10,6 +10,7 @@ mqtt_broker_address = "4.213.73.200"
 mqtt_broker_port = 1883
 
 mqtt_client = mqtt.Client()
+mqtt_client.username_pw_set(username="on_esp32", password="espesp@90")
 mqtt_client.connect(mqtt_broker_address, mqtt_broker_port)
 
 app = Flask(__name__, static_folder='../frontend', static_url_path='/')
@@ -283,6 +284,7 @@ def send_mqtt_command(user_id, command):
     api_key = row[0]
 
     # Publish the command to an MQTT topic
+    command = "dispense_now"
     mqtt_topic = f"user/{user_id}/{api_key}/commands"
     mqtt_client.publish(mqtt_topic, command)
 
